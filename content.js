@@ -118,35 +118,75 @@
   }
 
   function getCheckboxLabelText(cb, container) {
-    // Try several strategies to find the label text associated with a checkbox.
+    // Try multiple strategies, from most reliable to fuzziest, to find the
+    // text associated with a checkbox. Covers standard <label for="">,
+    // parent <label>, aria-label, aria-labelledby, and Material-style
+    // sibling/ancestor layouts where the text lives in an adjacent span.
+
+    // 1. aria-label attribute
+    const aria = cb.getAttribute('aria-label');
+    if (aria && aria.trim()) return aria.trim();
+
+    // 2. aria-labelledby reference
+    const labelledBy = cb.getAttribute('aria-labelledby');
+    if (labelledBy) {
+      try {
+        const el = container.querySelector(`#${CSS.escape(labelledBy)}`);
+        if (el) {
+          const t = el.textContent.trim();
+          if (t) return t;
+        }
+      } catch (e) {
+        /* ignore invalid ID */
+      }
+    }
+
+    // 3. Enclosing <label> element
     const parentLabel = cb.closest('label');
     if (parentLabel) {
       const clone = parentLabel.cloneNode(true);
-      clone.querySelectorAll('input').forEach((i) => i.remove());
-      return clone.textContent.trim();
+      clone.querySelectorAll('input, button, svg').forEach((i) => i.remove());
+      const t = clone.textContent.trim();
+      if (t) return t;
     }
+
+    // 4. <label for="cbId">
     if (cb.id) {
-      const forLabel = container.querySelector(`label[for="${cb.id}"]`);
-      if (forLabel) return forLabel.textContent.trim();
-    }
-    // Next non-empty sibling
-    let sib = cb.nextSibling;
-    while (sib) {
-      if (sib.nodeType === Node.TEXT_NODE && sib.textContent.trim()) {
-        return sib.textContent.trim();
+      try {
+        const forLabel = container.querySelector(
+          `label[for="${CSS.escape(cb.id)}"]`
+        );
+        if (forLabel) {
+          const t = forLabel.textContent.trim();
+          if (t) return t;
+        }
+      } catch (e) {
+        /* ignore */
       }
-      if (sib.nodeType === Node.ELEMENT_NODE) {
-        const t = sib.textContent.trim();
-        if (t) return t;
+    }
+
+    // 5. Walk up ancestors: the nearest container whose (non-input) text
+    //    is non-empty and reasonably short is almost certainly the row
+    //    that holds this checkbox + its label. This handles Material-style
+    //    layouts where <input> and its label span are separate children.
+    let ancestor = cb.parentElement;
+    for (let depth = 0; depth < 6 && ancestor && ancestor !== container; depth++) {
+      const clone = ancestor.cloneNode(true);
+      // Strip anything that isn't label text
+      clone
+        .querySelectorAll('input, button, svg')
+        .forEach((el) => el.remove());
+      // Strip common "Learn more" links that appear next to "Reading list"
+      clone.querySelectorAll('a').forEach((a) => {
+        if (/^\s*learn more\s*$/i.test(a.textContent || '')) a.remove();
+      });
+      const text = clone.textContent.replace(/\s+/g, ' ').trim();
+      if (text && text.length >= 1 && text.length <= 100) {
+        return text;
       }
-      sib = sib.nextSibling;
+      ancestor = ancestor.parentElement;
     }
-    // Parent element's text minus the checkbox
-    if (cb.parentElement) {
-      const clone = cb.parentElement.cloneNode(true);
-      clone.querySelectorAll('input').forEach((i) => i.remove());
-      return clone.textContent.trim();
-    }
+
     return '';
   }
 
@@ -222,6 +262,270 @@
 
     await closeDialog(dialog);
     return { dialogFound: true, labeled };
+  }
+
+  // ---------- Label discovery (dropdown + detection) ----------
+
+  const discoveredLabels = new Set();
+
+  function readLabelsFromDialog(dialog) {
+    const checkboxes = dialog.querySelectorAll('input[type="checkbox"]');
+    const names = [];
+    for (const cb of checkboxes) {
+      const txt = getCheckboxLabelText(cb, dialog).trim();
+      // Trim any trailing "Learn more" text (shown next to Reading list)
+      const cleaned = txt.replace(/\s+learn more\s*$/i, '').trim();
+      if (cleaned && cleaned.length < 120) names.push(cleaned);
+    }
+    console.log(
+      `[Scholar Auto-Star] readLabelsFromDialog: ${checkboxes.length} checkbox(es), extracted:`,
+      names
+    );
+    return names;
+  }
+
+  function refreshLabelDropdown() {
+    const select = document.getElementById('sas-label-select');
+    if (!select) return;
+
+    const previous = select.value;
+    // Reset
+    select.innerHTML = '';
+    const optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '— No label —';
+    select.appendChild(optNone);
+
+    const sorted = Array.from(discoveredLabels).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    for (const name of sorted) {
+      const o = document.createElement('option');
+      o.value = name;
+      o.textContent = name;
+      select.appendChild(o);
+    }
+
+    const optCustom = document.createElement('option');
+    optCustom.value = '__custom__';
+    optCustom.textContent = 'Custom (type below)…';
+    select.appendChild(optCustom);
+
+    // Restore previous selection if still valid
+    if (previous && Array.from(select.options).some((o) => o.value === previous)) {
+      select.value = previous;
+    }
+    updateCustomInputVisibility();
+  }
+
+  function updateCustomInputVisibility() {
+    const select = document.getElementById('sas-label-select');
+    const input = document.getElementById('sas-label-input');
+    if (!select || !input) return;
+    input.style.display = select.value === '__custom__' ? 'block' : 'none';
+  }
+
+  function getSelectedLabel() {
+    const select = document.getElementById('sas-label-select');
+    const input = document.getElementById('sas-label-input');
+    if (!select) return '';
+    if (select.value === '__custom__') return (input.value || '').trim();
+    return select.value || '';
+  }
+
+  // ---------- Label detection strategies ----------
+
+  function readLabelsFromCurrentPage() {
+    // Strategy for Manage Labels / My Library pages: the labels are already
+    // visible as links on the page itself — no save dialog needed.
+    const labels = new Set();
+
+    // Strategy A: Manage Labels page has a table; each row's first-column link
+    // is the label name.
+    const tableRows = document.querySelectorAll('tr');
+    for (const row of tableRows) {
+      const cells = row.querySelectorAll('td');
+      if (!cells.length) continue;
+      const link = cells[0].querySelector('a');
+      if (!link) continue;
+      const text = (link.textContent || '').trim();
+      if (
+        text &&
+        text.length > 0 &&
+        text.length < 120 &&
+        !/^(label name|actions|manage|edit|delete|create|remove)$/i.test(text)
+      ) {
+        labels.add(text);
+      }
+    }
+
+    // Strategy B: links anywhere on the page whose href looks like a label
+    // filter (Scholar uses params like lbl_id= or label=).
+    const allLinks = document.querySelectorAll('a[href]');
+    for (const link of allLinks) {
+      const href = link.getAttribute('href') || '';
+      if (!/[?&](lbl_id|label)=/.test(href)) continue;
+      const text = (link.textContent || '').trim();
+      if (
+        text &&
+        text.length > 0 &&
+        text.length < 120 &&
+        !/^(manage|edit|delete|create|remove|all)$/i.test(text)
+      ) {
+        labels.add(text);
+      }
+    }
+
+    return Array.from(labels);
+  }
+
+  async function fetchLabelsFromMyLibrary() {
+    // Fetch Scholar's label-listing pages in the background and parse out
+    // the label names. Try the Manage Labels page first (clean table) and
+    // then fall back to the My Library sidebar.
+    const urls = [
+      '/citations?view_op=list_article_labels&hl=en',
+      '/scholar?scilib=1',
+    ];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) continue;
+        const html = await res.text();
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+
+        const labels = new Set();
+
+        // Strategy A: table rows (Manage Labels page)
+        doc.querySelectorAll('tr').forEach((row) => {
+          const firstCell = row.querySelector('td');
+          if (!firstCell) return;
+          const link = firstCell.querySelector('a');
+          if (!link) return;
+          const text = (link.textContent || '').trim();
+          if (
+            text &&
+            text.length > 0 &&
+            text.length < 120 &&
+            !/^(label name|actions|manage|edit|delete|create|remove)$/i.test(text)
+          ) {
+            labels.add(text);
+          }
+        });
+
+        // Strategy B: href-based filter (My Library sidebar)
+        doc.querySelectorAll('a[href]').forEach((link) => {
+          const href = link.getAttribute('href') || '';
+          if (!/[?&](lbl_id|label)=/.test(href)) return;
+          const text = (link.textContent || '').trim();
+          if (
+            text &&
+            text.length > 0 &&
+            text.length < 120 &&
+            !/^(manage|edit|delete|create|remove|all)$/i.test(text)
+          ) {
+            labels.add(text);
+          }
+        });
+
+        if (labels.size > 0) {
+          console.log(
+            `[Scholar Auto-Star] Found ${labels.size} label(s) via ${url}:`,
+            Array.from(labels)
+          );
+          return Array.from(labels);
+        }
+      } catch (e) {
+        console.warn('[Scholar Auto-Star] Fetch error for', url, ':', e);
+      }
+    }
+    return [];
+  }
+
+  async function detectLabelsFromSaveDialog() {
+    // Last resort: open a save dialog, read labels, then undo the save.
+    const saveBtns = findSaveButtons();
+    const unsaved = saveBtns.filter((b) => !isStarred(b));
+    if (unsaved.length === 0) return [];
+
+    const btn = unsaved[0];
+    btn.click();
+
+    const dialog = await waitForSaveDialog(4000);
+    if (!dialog) return [];
+
+    const names = readLabelsFromDialog(dialog);
+
+    // Undo the save — click "Remove article" so we leave no trace.
+    const removeBtn = findButtonInDialog(dialog, ['remove article', 'remove']);
+    if (removeBtn) {
+      removeBtn.click();
+      await sleep(500);
+    } else {
+      await closeDialog(dialog);
+    }
+    return names;
+  }
+
+  async function detectLabels() {
+    setStatus('Detecting labels…');
+
+    // 1) Try reading from the current page (works on Manage Labels, My Library).
+    let names = readLabelsFromCurrentPage();
+    let source = 'this page';
+
+    // 2) Fetch My Library page and parse its sidebar.
+    if (names.length === 0) {
+      setStatus('Fetching labels from My Library…');
+      names = await fetchLabelsFromMyLibrary();
+      source = 'My Library';
+    }
+
+    // 3) Fall back to the save-dialog trick (only works on search results).
+    if (names.length === 0) {
+      setStatus('Trying the save dialog…');
+      names = await detectLabelsFromSaveDialog();
+      source = 'save dialog';
+    }
+
+    if (names.length === 0) {
+      setStatus(
+        '⚠️ Could not find any labels. Create one at My Library → Manage labels, ' +
+          'then click Detect again. Or use "Custom" to type the label manually.'
+      );
+      return;
+    }
+
+    names.forEach((n) => discoveredLabels.add(n));
+    refreshLabelDropdown();
+    setStatus(
+      `✅ Detected ${names.length} label(s) from ${source}: ${names.join(', ')}`
+    );
+  }
+
+  function startLabelObserver() {
+    // Passively watch the page for save dialogs. Whenever one appears,
+    // harvest the labels shown inside it to keep the dropdown up to date.
+    let lastSeenAt = 0;
+    const observer = new MutationObserver(() => {
+      const now = Date.now();
+      if (now - lastSeenAt < 250) return; // throttle
+      lastSeenAt = now;
+      const dialog = findVisibleDialog();
+      if (!dialog) return;
+      const names = readLabelsFromDialog(dialog);
+      if (!names.length) return;
+      let changed = false;
+      for (const n of names) {
+        if (!discoveredLabels.has(n)) {
+          discoveredLabels.add(n);
+          changed = true;
+        }
+      }
+      if (changed) refreshLabelDropdown();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   // ---------- Main action ----------
@@ -349,10 +653,19 @@
           <button id="sas-start" class="sas-primary">Start on this page</button>
           <button id="sas-stop" class="sas-danger">Stop</button>
         </div>
-        <label class="sas-label">
-          Apply label (optional — must exist in My Library)
-          <input id="sas-label-input" type="text" placeholder="e.g. NSF Award 2112562" />
-        </label>
+        <div class="sas-label-group">
+          <div class="sas-label-header">
+            <span>Apply label (optional)</span>
+            <button id="sas-detect" class="sas-small" title="Open a save dialog, read labels, cancel it">
+              🔄 Detect
+            </button>
+          </div>
+          <select id="sas-label-select">
+            <option value="">— No label —</option>
+            <option value="__custom__">Custom (type below)…</option>
+          </select>
+          <input id="sas-label-input" type="text" placeholder="Type exact label text…" style="display:none;margin-top:4px;" />
+        </div>
         <label class="sas-label">
           Delay between clicks (ms)
           <input id="sas-delay" type="number" value="2500" min="500" step="500" />
@@ -368,9 +681,9 @@
         <div id="sas-status">Ready.</div>
         <div class="sas-progress"><div id="sas-bar"></div></div>
         <div class="sas-hint">
-          Create labels first at
-          <a href="https://scholar.google.com/scholar?scilib=1" target="_blank">My Library</a>
-          → Manage labels. Then export saved items to BibTeX from there.
+          Click <strong>🔄 Detect</strong> to load your existing labels, or create new ones
+          at <a href="https://scholar.google.com/scholar?scilib=1" target="_blank">My Library</a>
+          → Manage labels. Export saved items to BibTeX from My Library when done.
         </div>
       </div>
     `;
@@ -385,7 +698,7 @@
       const delayMs = parseInt(document.getElementById('sas-delay').value, 10) || 2500;
       const jitterMs = parseInt(document.getElementById('sas-jitter').value, 10) || 0;
       const autoNext = document.getElementById('sas-autonext').checked;
-      const labelName = document.getElementById('sas-label-input').value.trim();
+      const labelName = getSelectedLabel();
       starAllOnPage({ delayMs, jitterMs, autoNext, labelName });
     });
 
@@ -394,6 +707,29 @@
       sessionStorage.removeItem('sas_autostart');
       setStatus('Stop requested…');
     });
+
+    document.getElementById('sas-detect').addEventListener('click', () => {
+      detectLabels();
+    });
+
+    document.getElementById('sas-label-select').addEventListener('change', () => {
+      updateCustomInputVisibility();
+    });
+
+    // Passive watcher: capture labels whenever any save dialog appears.
+    startLabelObserver();
+
+    // Kick off an initial detection in the background so the dropdown is
+    // pre-populated when the user opens it. Uses only non-intrusive strategies
+    // (current-page DOM + fetch My Library); does NOT touch search results.
+    (async () => {
+      let names = readLabelsFromCurrentPage();
+      if (names.length === 0) names = await fetchLabelsFromMyLibrary();
+      if (names.length > 0) {
+        names.forEach((n) => discoveredLabels.add(n));
+        refreshLabelDropdown();
+      }
+    })();
 
     // Auto-resume after page navigation.
     if (sessionStorage.getItem('sas_autostart') === '1') {
@@ -404,7 +740,14 @@
       document.getElementById('sas-delay').value = delayMs;
       document.getElementById('sas-jitter').value = jitterMs;
       document.getElementById('sas-autonext').checked = autoNext;
-      document.getElementById('sas-label-input').value = labelName;
+      if (labelName) {
+        // Pre-populate the custom input so the label persists across pages
+        // even if Detect hasn't run yet on this page.
+        discoveredLabels.add(labelName);
+        refreshLabelDropdown();
+        document.getElementById('sas-label-select').value = labelName;
+        updateCustomInputVisibility();
+      }
       sessionStorage.removeItem('sas_autostart');
       setTimeout(
         () => starAllOnPage({ delayMs, jitterMs, autoNext, labelName }),

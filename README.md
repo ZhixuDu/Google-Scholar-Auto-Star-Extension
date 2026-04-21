@@ -1,108 +1,131 @@
-# Scholar Auto-Star (v1.1)
+# Scholar Auto-Star
 
-A Chrome extension that automates clicking the ⭐ "Save" button on Google
-Scholar search results and optionally applies a label to each saved paper.
-Designed for compiling publication lists (e.g., for grant reports) where you
-need to bulk-save hundreds of Scholar hits and then export them as BibTeX.
+A Chrome extension that automates saving (starring) Google Scholar search
+results to your **My Library**, with optional automatic labeling. Built for
+researchers who need to compile publication lists for grant reports, systematic
+literature reviews, or bibliometric work — where manually clicking the ⭐ on
+hundreds of results is a real bottleneck.
 
----
+Once items are saved and labeled, you can export them from My Library to a
+single `.bib` file in one click.
+
+## Features
+
+- One-click bulk-starring of every result on a Google Scholar search page
+- Configurable delay + random jitter between clicks to avoid rate limiting
+- Optional **auto-advance** through all pages of a multi-page search
+- **Smart label detection**: auto-populates a dropdown with your existing
+  Scholar labels (read from the Manage Labels page, My Library sidebar, or the
+  save dialog as fallback) — no need to type exact label names
+- **CAPTCHA detection**: stops automatically if Scholar throws a challenge, so
+  you can solve it manually and resume
+- **Resume across pages**: settings (delay, label, auto-advance) persist
+  through page navigation
+- Runs entirely in your browser — no outbound requests, no analytics, no
+  account needed
 
 ## Installation
 
-1. Download and unzip the folder somewhere on your computer.
-2. Open Chrome → `chrome://extensions`.
-3. Toggle **Developer mode** ON (top-right).
-4. Click **Load unpacked** and select the `scholar-auto-star` folder.
-5. The extension is now active on `scholar.google.com`.
+### From source (Developer mode)
 
-If you already installed v1.0, go to `chrome://extensions`, find "Scholar
-Auto-Star", and click the refresh/reload icon — or remove and re-add the folder.
+1. Clone or download this repository.
+2. Open Chrome and navigate to `chrome://extensions`.
+3. Toggle **Developer mode** on in the top-right corner.
+4. Click **Load unpacked** and select the repository folder.
+5. Navigate to `https://scholar.google.com` — a blue control panel labeled
+   **⭐ Scholar Auto-Star** should appear in the top-right of the page.
 
----
+### Chrome Web Store
 
-## Quick start (with label)
+Not yet published. Contributions toward that welcome.
 
-1. **Create your label first.** Go to
-   [My Library](https://scholar.google.com/scholar?scilib=1) → "Manage labels"
-   in the left sidebar → create a label like `NSF Award 2112562`.
-   **The extension can only apply labels that already exist.**
-2. Sign in to Google and run your Scholar search.
-3. The **⭐ Scholar Auto-Star** panel appears in the top-right of the page.
-4. Type the exact label name into the "Apply label" field.
-5. Set the delay (2500 ms is a good default) and jitter (1500 ms).
-6. Optionally tick **Auto-advance to next page** if you want it to crawl all
-   pages unattended.
-7. Click **Start on this page**.
+## Usage
 
-Progress shows both saves and label applications. When done, open My Library,
-filter by your label in the left sidebar, select all, and **Export → BibTeX**.
+1. **(One-time)** Create a label in Scholar if you don't already have one:
+   [My Library](https://scholar.google.com/scholar?scilib=1) →
+   *Manage labels* → *Create a new label*. Name it anything descriptive, e.g.
+   `NSF Award 2112562`.
+2. Run your Scholar search and make sure you're signed in to Google.
+3. In the Scholar Auto-Star panel, pick your label from the dropdown.
+   It should already be populated. If not, click **🔄 Detect**.
+4. Adjust **Delay** (2500 ms is a sensible default) and **Random jitter**
+   (1500 ms). Lower values are faster but more likely to trigger CAPTCHAs.
+5. (Optional) Tick **Auto-advance to next page** to crawl the full result set
+   unattended.
+6. Click **Start on this page** and let it run.
 
----
+When finished, open
+[My Library](https://scholar.google.com/scholar?scilib=1), filter by your
+label in the left sidebar, select all, and use the three-dot menu to export
+as BibTeX.
 
-## What's new in v1.1
+## How label detection works
 
-- **Label field.** Applies a pre-existing label to every paper as it's saved.
-- Leave the label field blank to just star without labeling (v1.0 behavior).
-- Status line now shows both save count and label count, with separate failure
-  reporting if labels fail to apply.
-- Label preference persists across auto-advance page navigations.
+The extension tries three strategies in order:
 
----
+1. **Current page DOM** — if you're on the Manage Labels or My Library page,
+   labels are already visible and get parsed directly.
+2. **Background fetch** — requests Scholar's label-listing endpoints
+   (`/citations?view_op=list_article_labels` and `/scholar?scilib=1`) and
+   parses the response. No navigation away from your current page.
+3. **Save dialog** — as a last resort, opens the save dialog on the first
+   unstarred result, reads the label checkboxes, and clicks *Remove article*
+   to undo the save.
 
-## Is there an easier way to apply labels?
-
-Yes — if you want the **same** label on every starred paper, you can just:
-
-1. Use this extension with the label field **blank** to star everything.
-2. Go to My Library.
-3. Tick the "select all" checkbox at the top.
-4. Click the label icon in the top toolbar and apply your label to all items at
-   once.
-
-That's actually simpler than per-paper labeling and doesn't depend on Scholar's
-dropdown DOM staying stable. Use per-paper labeling (this extension's feature)
-only if you want to apply **different** labels to different papers in the same
-session, or if you want fully automated end-to-end labeling.
-
----
+A fourth passive path runs a `MutationObserver` that harvests labels from any
+save dialog that appears during normal use, keeping the dropdown up to date.
 
 ## Caveats
 
-- **The label must already exist** in your Scholar library. The extension
-  searches the Label dropdown for an exact (case-insensitive) text match and
-  clicks it. It does not create new labels.
-- **Label selectors are best-guess.** Google Scholar changes its HTML markup
-  occasionally. If labels stop applying, look at the `applyLabel()` function in
-  `content.js` — the `candidateSelectors` array lists the selectors tried. You
-  may need to add one matching Scholar's current markup.
-- **CAPTCHA risk remains.** Adding label application means slightly more
-  clicking per paper, which can slightly increase CAPTCHA probability. If you
-  see frequent CAPTCHAs, raise the delay or use the bulk-label-from-My-Library
-  approach above.
-- **Timing.** With labeling enabled, each paper takes roughly 4–6 seconds
-  (vs. 2–4 seconds without labeling). 368 papers ≈ 25–35 minutes.
-
----
+- **CAPTCHA risk.** Any automation of Google Scholar carries some risk.
+  Randomized delays help, and the extension pauses automatically when it
+  detects a challenge. If CAPTCHAs are frequent, raise the delay.
+- **Scholar can change its HTML.** Class names and dialog structure
+  occasionally shift. If label detection or save-dialog handling breaks,
+  expect the fix to be a few selectors in `content.js`.
+- **Label must exist before use.** The extension selects existing labels from
+  the save dialog — it does not create new ones.
+- **Chrome-only for now.** Uses Manifest V3. Should port cleanly to Firefox
+  with minimal changes (promise-based APIs, but `chrome.*` namespace differs).
 
 ## Troubleshooting
 
-**"Label X not found in dropdown"** — The label doesn't exist. Create it in My
-Library first, making sure the name matches exactly (case doesn't matter, but
-spaces and punctuation do).
+- **Dropdown is empty.** Click 🔄 Detect; the status line should report which
+  strategy succeeded. If all three fail, check DevTools Console for
+  `[Scholar Auto-Star]` messages with diagnostic output.
+- **Labels aren't being applied** but saves work. Open DevTools, run a save
+  manually while the panel is open, and look for the line
+  `[Scholar Auto-Star] readLabelsFromDialog: N checkbox(es), extracted: [...]`.
+  If the extracted array is empty, Scholar has changed its dialog markup and
+  `getCheckboxLabelText` in `content.js` needs a new strategy.
+- **"No Save buttons found."** You're not on a Scholar search-results page.
+  Make sure the URL is `scholar.google.com/scholar?q=...`.
+- **Saves silently fail** (no dialog appears). You're not signed in to Google
+  — sign in and retry.
 
-**Saves work, labels don't** — Scholar may have changed label dropdown markup.
-Open DevTools (F12) → Console on a Scholar results page, click Save on one
-result manually, then click the "Label" link to open the dropdown, then inspect
-the dropdown items. Update `candidateSelectors` in `content.js` accordingly.
+## File layout
 
-**Progress says labeled N but I don't see them in My Library** — Check that
-you're looking at the right label in the sidebar. Refresh My Library.
+```
+scholar-auto-star/
+├── manifest.json    # Extension manifest (MV3)
+├── content.js       # Main logic: panel injection, click automation, label handling
+├── content.css      # Floating control panel styles
+├── README.md        # This file
+├── LICENSE          # MIT
+└── .gitignore
+```
 
----
+## Contributing
 
-## Files
+Pull requests welcome. Particularly useful contributions:
 
-- `manifest.json` — extension manifest (Manifest V3)
-- `content.js` — main logic: panel injection, star clicks, label application
-- `content.css` — styling for the floating panel
-- `README.md` — this file
+- Firefox port (replace `chrome.*` where needed, bundle for `about:debugging`)
+- Selector updates when Scholar changes its markup
+- Localization (currently English-only)
+- Chrome Web Store listing
+
+## License
+
+[MIT](LICENSE). Use responsibly — this tool automates what a human can do
+manually; it's not a mandate to hammer Scholar with thousands of rapid
+requests. Google Scholar's anti-abuse systems exist for good reasons.
