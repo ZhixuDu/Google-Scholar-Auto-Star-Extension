@@ -41,18 +41,14 @@ Not yet published. Contributions toward that welcome.
 
 ## Usage
 
-1. **(One-time)** Create a label in Scholar if you don't already have one:
-   [My Library](https://scholar.google.com/scholar?scilib=1) →
-   *Manage labels* → *Create a new label*. Name it anything descriptive, e.g.
-   `NSF Award 2112562`.
-2. Run your Scholar search and make sure you're signed in to Google.
-3. In the Scholar Auto-Star panel, pick your label from the dropdown.
-   It should already be populated. If not, click **🔄 Detect**.
-4. Adjust **Delay** (2500 ms is a sensible default) and **Random jitter**
+1. Run your Scholar search and make sure you're signed in to Google.
+2. In the Scholar Auto-Star panel, pick your label from the dropdown.
+   It should already be populated. If not, click **🔄 Detect**. (**Bugs for this version.**)
+3. Adjust **Delay** (2500 ms is a sensible default) and **Random jitter**
    (1500 ms). Lower values are faster but more likely to trigger CAPTCHAs.
-5. (Optional) Tick **Auto-advance to next page** to crawl the full result set
+4. (Optional) Tick **Auto-advance to next page** to crawl the full result set
    unattended.
-6. Click **Start on this page** and let it run.
+5. Click **Start on this page** and let it run.
 
 When finished, open
 [My Library](https://scholar.google.com/scholar?scilib=1), filter by your
