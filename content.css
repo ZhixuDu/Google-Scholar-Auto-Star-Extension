@@ -1,0 +1,152 @@
+#sas-controls {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 2147483647;
+  width: 260px;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  color: #202124;
+  overflow: hidden;
+}
+
+#sas-controls .sas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #4285f4;
+  color: white;
+  font-weight: 600;
+}
+
+#sas-controls .sas-title {
+  font-size: 13px;
+}
+
+#sas-controls #sas-collapse {
+  background: transparent;
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  line-height: 1;
+  font-size: 14px;
+  padding: 0;
+}
+
+#sas-controls .sas-body {
+  padding: 12px;
+}
+
+#sas-controls .sas-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+#sas-controls button.sas-primary,
+#sas-controls button.sas-danger {
+  flex: 1;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+}
+
+#sas-controls button.sas-primary {
+  background: #1a73e8;
+}
+
+#sas-controls button.sas-primary:hover {
+  background: #1558b0;
+}
+
+#sas-controls button.sas-danger {
+  background: #d93025;
+}
+
+#sas-controls button.sas-danger:hover {
+  background: #a50e0e;
+}
+
+#sas-controls .sas-label {
+  display: block;
+  margin: 8px 0;
+  color: #3c4043;
+  font-size: 12px;
+}
+
+#sas-controls .sas-label input[type="number"] {
+  display: block;
+  margin-top: 3px;
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+#sas-controls .sas-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#sas-controls .sas-check input {
+  margin: 0;
+}
+
+#sas-controls #sas-status {
+  margin-top: 10px;
+  padding: 8px;
+  background: #f1f3f4;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #202124;
+  min-height: 18px;
+  line-height: 1.4;
+}
+
+#sas-controls .sas-progress {
+  margin-top: 6px;
+  height: 6px;
+  background: #e8eaed;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#sas-controls #sas-bar {
+  height: 100%;
+  width: 0%;
+  background: #34a853;
+  transition: width 0.3s ease;
+}
+
+#sas-controls .sas-hint {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e8eaed;
+  font-size: 11px;
+  color: #5f6368;
+  line-height: 1.4;
+}
+
+#sas-controls .sas-hint a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+#sas-controls .sas-hint a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Scholar Auto-Star",
+  "version": "1.2",
+  "description": "Automatically star Google Scholar search results to save them to My Library, with optional label application via the save dialog.",
+  "host_permissions": ["https://scholar.google.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://scholar.google.com/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
