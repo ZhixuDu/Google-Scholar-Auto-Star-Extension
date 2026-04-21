@@ -97,6 +97,54 @@
   box-sizing: border-box;
 }
 
+#sas-controls .sas-label-group {
+  margin: 8px 0;
+}
+
+#sas-controls .sas-label-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #3c4043;
+}
+
+#sas-controls button.sas-small {
+  background: #f1f3f4;
+  color: #1a73e8;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+#sas-controls button.sas-small:hover {
+  background: #e8f0fe;
+  border-color: #1a73e8;
+}
+
+#sas-controls #sas-label-select {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+  background: white;
+}
+
+#sas-controls #sas-label-input {
+  width: 100%;
+  padding: 5px 7px;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
 #sas-controls .sas-check {
   display: flex;
   align-items: center;
